@@ -75,11 +75,11 @@ static int wait_change(int mode, unsigned int tmo)
 
 static int read_am2301(sensor_data *s, int mode)
 {
-    int i, j, k;
-    int val;
-    int v;
-    unsigned char x;
-    unsigned char vals[5];
+    int  exponent, read_counter;
+    int time_til_change;
+    int read_digit;
+    unsigned char read;
+    unsigned char reads[5];
 
     /* Leave it high for a while */
     pinMode(_pin_am2301, OUTPUT);
@@ -94,71 +94,65 @@ static int read_am2301(sensor_data *s, int mode)
     digitalWrite(_pin_am2301, HIGH);
     pinMode(_pin_am2301, INPUT);
     if (wait_change(HIGH, 100) == -1) {
-	return -1;
+      return -1;
     }
 
     /* Wait for ACK */
     if (wait_change(LOW, 100) == -1) {
-	return -2;
+      return -2;
     }
 
     if (wait_change(HIGH, 100) == -1) {
-	return -3;
+      return -3;
     }
 
     /* When restarting, it looks like this lookfor start bit is not needed */
     if (mode != 0) {
-	/* Wait for the start bit */
-	if (wait_change(LOW, 200) == -1) {
-	    return -4;
-	}
-	
-	if (wait_change(HIGH, 200) == -1) {
-	    return -5;
-	}
+      /* Wait for the start bit */
+      if (wait_change(LOW, 200) == -1) {
+          return -4;
+      }
+
+      if (wait_change(HIGH, 200) == -1) {
+          return -5;
+      }
     }
-    x = 0;
-    k = 0;
-    j = 7;
 
-    for (i = 0; i < 40; i++) {
-	val = wait_change(LOW, 500);
-	if (val == -1) {
-	    return -6;
-	}
+    for (read_counter = 0; read_counter < 5; read_counter++) {
+      for (exponent = 7, read = 0; exponent >= 0; exponent--) {
+        time_til_change = wait_change(LOW, 500);
+        if (time_til_change == -1) {
+            return -6;
+        }
 
-	v = (val >= 50) ? 1 : 0;
-	x = x | (v << j);
-
-	if (--j == -1) {
-	    vals[k] = x;
-	    k++;
-	    j = 7;
-	    x = 0;
-	}
-	val = wait_change(HIGH, 500);
-	if (val == -1) {
-	    return -7;
-	}
+        read_digit = (time_til_change >= 50) ? 1 : 0;
+        // read = read OR (read_digit * 2^exponent)
+        read = read | (read_digit << exponent);
+        if (wait_change(HIGH, 500) == -1) {
+            return -7;
+        }
+      }
+      reads[read_counter] = read;
     }
+
     pinMode(_pin_am2301, OUTPUT);
     digitalWrite(_pin_am2301, HIGH);
 
     /* Verify checksum */
-    x = vals[0] + vals[1] + vals[2] + vals[3];
-    if (x != vals[4]) {
-	return -8;
+    read = reads[0] + reads[1] + reads[2] + reads[3];
+    if (read != reads[4]) {
+      return -8;
     }
 
-    s->rh = (float) (((uint16_t) vals[0] << 8) | (uint16_t) vals [1]);
+    s->rh = (float) (((uint16_t) reads[0] << 8) | (uint16_t) reads[1]);
     s->rh /= 10.0f;
-    s->t = (float) (((uint16_t) vals[2] << 8) | (uint16_t) vals [3]);
+    s->t = (float) (((uint16_t) reads[2] << 8) | (uint16_t) reads[3]);
     s->t /= 10.0f;
 
     if (s->rh > 100.0 || s->rh < 0.0 ||
-	s->t > 80.0 || s->t < -40.0 )
+          s->t > 80.0 || s->t < -40.0 )
     {
-	return -9;
+      return -9;
     }
     return 0;
 }
