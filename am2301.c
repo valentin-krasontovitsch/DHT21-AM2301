@@ -62,7 +62,7 @@ static int wait_change(int mode, unsigned int tmo)
     unsigned int now = micros();
 
     do {
-	/* Primitive low-pass filter */ 
+	/* Primitive low-pass filter */
 	v1 = digitalRead(_pin_am2301);
 	v2 = digitalRead(_pin_am2301);
 	v3 = digitalRead(_pin_am2301);
@@ -78,7 +78,7 @@ static int read_am2301(sensor_data *s, int mode)
     int  exponent, read_counter;
     int time_til_change;
     int read_digit;
-    unsigned char read;
+    unsigned char read, checksum;
     unsigned char reads[5];
 
     /* Leave it high for a while */
@@ -90,7 +90,7 @@ static int read_am2301(sensor_data *s, int mode)
     digitalWrite(_pin_am2301, LOW);
     delayMicroseconds(1000);
 
-    /* Now set the pin high to let the sensor start communicating */ 
+    /* Now set the pin high to let the sensor start communicating */
     digitalWrite(_pin_am2301, HIGH);
     pinMode(_pin_am2301, INPUT);
     if (wait_change(HIGH, 100) == -1) {
@@ -139,8 +139,8 @@ static int read_am2301(sensor_data *s, int mode)
     digitalWrite(_pin_am2301, HIGH);
 
     /* Verify checksum */
-    read = reads[0] + reads[1] + reads[2] + reads[3];
-    if (read != reads[4]) {
+    checksum = reads[0] + reads[1] + reads[2] + reads[3];
+    if (checksum != reads[4]) {
       return -8;
     }
 
@@ -168,17 +168,17 @@ int main(int argc, char *argv[])
     /* Try 10 times, then bail out.
      */
     while (i < 10) {
-	ret = read_am2301(&s, 1);
-	if (ret == 0) {
-	    printf("t=%.1f\nrh=%.1f\n", s.t, s.rh);
-	    break;
-	}
-	delay(2000);
-	i++;
+      ret = read_am2301(&s, 1);
+      if (ret == 0) {
+          printf("t=%.1f\nrh=%.1f\n", s.t, s.rh);
+          break;
+      }
+      delay(2000);
+      i++;
     }
 
     if (i > 10) {
-	return -1;
+      return -1;
     }
     return 0;
 }
